@@ -66,6 +66,13 @@ Modern microservices fail faster than human SREs can open an incident bridge. In
 
 ## 🏛️ System Architecture
 
+<div align="center">
+
+![IncidentZero System Architecture](docs/assets/system-architecture.png)
+*Figure 2: End-to-end autonomous triage, multi-agent consensus, formal verification, and GitOps loop.*
+
+</div>
+
 ```
                                 [ Real-time Telemetry & Edge Streams ]
                                                   │
