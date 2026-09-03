@@ -78,6 +78,10 @@ def inspect_cluster_telemetry() -> Dict[str, Any]:
         },
         "active_incident": incident.model_dump() if incident else None,
         "recent_critical_logs": [l.model_dump() for l in logs if l.level in ("CRITICAL", "ERROR", "AGENT")],
+        "finops": telemetry.finops.model_dump() if telemetry.finops else None,
+        "active_antibodies": [ab.model_dump() for ab in telemetry.active_antibodies],
+        "sovereign_mesh": telemetry.sovereign_mesh.model_dump() if telemetry.sovereign_mesh else None,
+        "global_mesh": telemetry.global_mesh.model_dump() if telemetry.global_mesh else None,
     }
 
 

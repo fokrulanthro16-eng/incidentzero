@@ -304,7 +304,9 @@ class DAGStep(BaseModel):
     requires_voice_confirmation: bool = False
     status: DAGStepStatus = DAGStepStatus.PENDING
     output: Optional[str] = None
-    duration_ms: Optional[int] = None
+    duration_ms: Optional[float] = None
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
 
 
 class RemediationDAG(BaseModel):

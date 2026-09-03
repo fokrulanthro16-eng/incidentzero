@@ -192,9 +192,19 @@ export function useSSEStream(apiUrl: string = "http://127.0.0.1:8000") {
                 setTelemetry(data.telemetry);
                 if (data.telemetry.finops) setFinopsMetrics(data.telemetry.finops);
               }
+            } else if (data.type === "DAG_STEP_PROGRESS") {
+              if (data.dag) setActiveDAG(data.dag);
+              if (data.telemetry) {
+                setTelemetry(data.telemetry);
+                if (data.telemetry.finops) setFinopsMetrics(data.telemetry.finops);
+              }
             } else if (data.type === "DAG_COMPLETED") {
               if (data.dag) setActiveDAG(data.dag);
-              if (data.telemetry) setTelemetry(data.telemetry);
+              if (data.telemetry) {
+                setTelemetry(data.telemetry);
+                if (data.telemetry.finops) setFinopsMetrics(data.telemetry.finops);
+                if (data.telemetry.active_antibodies) setTelemetry(data.telemetry);
+              }
               if (data.hotfix_pr) setHotfixPR(data.hotfix_pr);
             } else if (data.type === "PRE_INCIDENT_WARNING") {
               if (data.predictive_radar) setPreIncidentWarning(data.predictive_radar);

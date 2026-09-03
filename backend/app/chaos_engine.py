@@ -56,6 +56,7 @@ class CloudChaosEngine:
 
         # Active Git Hotfix PR
         self.current_hotfix_pr: Optional[GitHotfixPR] = None
+        self.is_recently_mitigated: bool = False
 
         self._initialize_baseline_topology()
 
@@ -377,6 +378,7 @@ class CloudChaosEngine:
     def trigger_outage(self, scenario_id: ScenarioType) -> IncidentRecord:
         """Triggers a deterministic cloud outage scenario."""
         self.active_scenario = scenario_id
+        self.is_recently_mitigated = False
         timestamp_str = datetime.now(timezone.utc).isoformat()
         incident_id = f"INC-{int(time.time())}"
 
@@ -549,6 +551,7 @@ class CloudChaosEngine:
 
         elif action_name == "verify_and_restore_healthy":
             self.active_scenario = None
+            self.is_recently_mitigated = True
             self._initialize_baseline_topology()
             if self.current_incident:
                 self.current_incident.status = IncidentStatus.RESOLVED
@@ -619,7 +622,7 @@ class CloudChaosEngine:
         )
 
         # Level-3 FinOps and Swarm Consensus calculation
-        is_mitigated = any(n.status == HealthStatus.RECOVERING for n in nodes_copy.values())
+        is_mitigated = self.is_recently_mitigated or any(n.status == HealthStatus.RECOVERING for n in nodes_copy.values())
         finops_data = FinOpsEngine.calculate_metrics(
             overall_health=overall,
             total_rps=total_rps,

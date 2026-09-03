@@ -22,8 +22,21 @@ class FinOpsEngine:
         scenario: Optional[ScenarioType] = None,
         is_mitigated: bool = False
     ) -> FinOpsMetrics:
+        # Mitigated / Post-Healing State (Halt loss counter and show capital preserved)
+        if is_mitigated:
+            return FinOpsMetrics(
+                status="CAPITAL_PRESERVED",
+                loss_per_min_usd=0.0,
+                dropped_rps=0.0,
+                sla_penalty_tier="Preserved Tier-1 SLA (100% Guaranteed)",
+                capital_preserved_usd=18450.0,
+                mttr_seconds=3.4,
+                roi_efficiency_pct=99.8,
+                total_exposure_accumulated_usd=0.0
+            )
+
         # Nominal Baseline
-        if overall_health == HealthStatus.HEALTHY and not is_mitigated:
+        if overall_health == HealthStatus.HEALTHY:
             return FinOpsMetrics(
                 status="HEALTHY",
                 loss_per_min_usd=0.0,
@@ -32,19 +45,6 @@ class FinOpsEngine:
                 capital_preserved_usd=0.0,
                 mttr_seconds=0.0,
                 roi_efficiency_pct=100.0,
-                total_exposure_accumulated_usd=0.0
-            )
-
-        # Mitigated / Post-Healing State
-        if is_mitigated or overall_health == HealthStatus.RECOVERING:
-            return FinOpsMetrics(
-                status="CAPITAL_PRESERVED",
-                loss_per_min_usd=0.0,
-                dropped_rps=0.0,
-                sla_penalty_tier="Preserved Tier-1 SLA",
-                capital_preserved_usd=12650.0,
-                mttr_seconds=3.4,
-                roi_efficiency_pct=99.8,
                 total_exposure_accumulated_usd=0.0
             )
 
@@ -61,11 +61,11 @@ class FinOpsEngine:
 
         return FinOpsMetrics(
             status="OUTAGE_EXPOSURE",
-            loss_per_min_usd=loss_per_min if loss_per_min > 0 else 1420.0,
+            loss_per_min_usd=loss_per_min,
             dropped_rps=round(dropped_rps, 1),
             sla_penalty_tier=sla_tier,
             capital_preserved_usd=0.0,
             mttr_seconds=0.0,
-            roi_efficiency_pct=64.2,
-            total_exposure_accumulated_usd=round(loss_per_sec * 18.0, 2)
+            roi_efficiency_pct=74.2,
+            total_exposure_accumulated_usd=round(loss_per_min * 0.5, 2)
         )
