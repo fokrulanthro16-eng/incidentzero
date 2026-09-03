@@ -76,38 +76,6 @@ export default function MissionControlDashboard() {
   const [showPostmortem, setShowPostmortem] = useState(false);
   const [postmortemData, setPostmortemData] = useState<Record<string, unknown> | null>(null);
 
-  const {
-    isListening,
-    isSpeaking,
-    transcript,
-    interimTranscript,
-    spokenResponse,
-    audioLevel,
-    toggleListening,
-    startListening,
-    sendVoiceCommand,
-    speakAloud,
-  } = useVoiceControl({
-    apiBaseUrl: API_BASE,
-    onHotfixPRReceived: (pr) => {
-      setHotfixPR(pr);
-      setShowHotfixModal(true);
-    },
-  });
-
-  // Default view is 'editorial' on page load
-  const [viewMode, setViewMode] = useState<"editorial" | "console">("editorial");
-
-  const handleLaunchConsole = () => {
-    playChime("click");
-    setViewMode("console");
-  };
-
-  const handleReturnToEditorial = () => {
-    playChime("click");
-    setViewMode("editorial");
-  };
-
   // Trigger chaos scenario
   const handleTriggerScenario = async (scenarioId: string) => {
     try {
@@ -125,6 +93,39 @@ export default function MissionControlDashboard() {
     } catch (err) {
       console.error("Trigger chaos failed:", err);
     }
+  };
+
+  const {
+    isListening,
+    isSpeaking,
+    transcript,
+    interimTranscript,
+    spokenResponse,
+    audioLevel,
+    toggleListening,
+    startListening,
+    sendVoiceCommand,
+    speakAloud,
+  } = useVoiceControl({
+    apiBaseUrl: API_BASE,
+    onTriggerScenario: handleTriggerScenario,
+    onHotfixPRReceived: (pr) => {
+      setHotfixPR(pr);
+      setShowHotfixModal(true);
+    },
+  });
+
+  // Default view is 'editorial' on page load
+  const [viewMode, setViewMode] = useState<"editorial" | "console">("editorial");
+
+  const handleLaunchConsole = () => {
+    playChime("click");
+    setViewMode("console");
+  };
+
+  const handleReturnToEditorial = () => {
+    playChime("click");
+    setViewMode("editorial");
   };
 
   // Reset baseline

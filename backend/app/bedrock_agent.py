@@ -343,8 +343,8 @@ class BedrockAgentOrchestrator:
                     hotfix_pr=chaos_engine.current_hotfix_pr,
                 )
 
-        # 3. Trigger Chaos Outages via voice
-        if "database" in text or "postgres" in text or "connection pool" in text or "db lock" in text:
+        # 3. Trigger Chaos Outages via voice (extremely forgiving keyword matching)
+        if any(kw in text for kw in ["simulate", "db", "outage", "database", "lock", "crash", "postgres", "pool"]):
             incident = chaos_engine.trigger_outage(ScenarioType.SCENARIO_DB_POOL_EXHAUSTED)
             dag = self.plan_remediation_dag(ScenarioType.SCENARIO_DB_POOL_EXHAUSTED)
             return VoiceCommandResponse(

@@ -27,12 +27,14 @@ interface SpeechRecognitionEvent extends Event {
 interface UseVoiceControlProps {
   onTranscriptReceived?: (transcript: string) => void;
   onHotfixPRReceived?: (pr: GitHotfixPRData) => void;
+  onTriggerScenario?: (scenarioId: string) => void;
   apiBaseUrl?: string;
 }
 
 export function useVoiceControl({
   onTranscriptReceived,
   onHotfixPRReceived,
+  onTriggerScenario,
   apiBaseUrl = "http://127.0.0.1:8000",
 }: UseVoiceControlProps = {}) {
   const [isListening, setIsListening] = useState(false);
@@ -48,32 +50,33 @@ export function useVoiceControl({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const lastTriggerTimeRef = useRef<number>(0);
 
   // Initialize Speech Synthesis & Speech Recognition
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const SpeechRecognition =
+    const SpeechRec =
       (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition ||
       (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
+    if (!SpeechRec) {
+      console.warn("[VoiceControl] SpeechRecognition not supported in this browser.");
       setIsSupported(false);
-      console.warn("Web Speech API not supported in this browser.");
       return;
     }
 
-    const recognition = new (SpeechRecognition as new () => {
+    const recognition = new (SpeechRec as new () => {
       continuous: boolean;
       interimResults: boolean;
       lang: string;
+      start: () => void;
+      stop: () => void;
+      abort: () => void;
       onstart: () => void;
       onend: () => void;
       onerror: (event: SpeechRecognitionErrorEvent) => void;
       onresult: (event: SpeechRecognitionEvent) => void;
-      start: () => void;
-      stop: () => void;
-      abort: () => void;
     })();
 
     recognition.continuous = true;
@@ -108,6 +111,33 @@ export function useVoiceControl({
         }
       }
 
+      const activeText = (currentFinal || currentInterim).trim();
+      if (activeText) {
+        console.log("Transcript detected:", activeText);
+        const lower = activeText.toLowerCase();
+
+        // Check forgiving DB Lock keywords: "simulate", "db", "outage", "database", "lock", "crash"
+        const dbKeywords = ["simulate", "db", "outage", "database", "lock", "crash"];
+        const hasDbKeyword = dbKeywords.some((kw) => lower.includes(kw));
+
+        const now = Date.now();
+        // Prevent duplicate spam triggers within 3 seconds
+        if (hasDbKeyword && now - lastTriggerTimeRef.current > 3000) {
+          lastTriggerTimeRef.current = now;
+          console.log("[VoiceControl] Auto-triggering DB lock simulation on keyword match:", activeText);
+          playChime("alert");
+          if (onTriggerScenario) {
+            onTriggerScenario("SCENARIO_DB_POOL_EXHAUSTED");
+          } else {
+            fetch(`${apiBaseUrl}/api/chaos/trigger`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ scenario_id: "SCENARIO_DB_POOL_EXHAUSTED" }),
+            }).catch((err) => console.error("Auto trigger error:", err));
+          }
+        }
+      }
+
       if (currentInterim) {
         setInterimTranscript(currentInterim);
       }
@@ -134,7 +164,7 @@ export function useVoiceControl({
         // cleanup error
       }
     };
-  }, []);
+  }, [apiBaseUrl, onTranscriptReceived, onTriggerScenario]);
 
   // Set up microphone audio level analysis
   const setupAudioAnalysis = async () => {
@@ -160,22 +190,23 @@ export function useVoiceControl({
         for (let i = 0; i < dataArray.length; i++) {
           sum += dataArray[i];
         }
-        const avg = sum / dataArray.length;
-        setAudioLevel(avg / 128);
+        const avg = sum / dataArray.length / 255;
+        setAudioLevel(avg);
         animationFrameRef.current = requestAnimationFrame(tick);
       };
       tick();
-    } catch (err) {
-      console.warn("Could not setup audio analyser:", err);
+    } catch {
+      // Audio level visualizer fallback
     }
   };
 
   const stopAudioAnalysis = () => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
     if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((track) => track.stop());
+      micStreamRef.current.getTracks().forEach((t) => t.stop());
       micStreamRef.current = null;
     }
     if (audioContextRef.current) {
