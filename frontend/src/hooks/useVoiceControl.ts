@@ -46,13 +46,11 @@ export function useVoiceControl({
   const [isSupported, setIsSupported] = useState(true);
 
   const recognitionRef = useRef<unknown>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
+  const demoTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastTriggerTimeRef = useRef<number>(0);
 
-  // Initialize Speech Synthesis & Speech Recognition
+  // Initialize Web Speech Recognition if available
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -60,161 +58,82 @@ export function useVoiceControl({
       (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition ||
       (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
 
-    if (!SpeechRec) {
-      console.warn("[VoiceControl] SpeechRecognition not supported in this browser.");
-      setIsSupported(false);
-      return;
-    }
+    if (SpeechRec) {
+      try {
+        const recognition = new (SpeechRec as new () => {
+          continuous: boolean;
+          interimResults: boolean;
+          lang: string;
+          start: () => void;
+          stop: () => void;
+          abort: () => void;
+          onstart: () => void;
+          onend: () => void;
+          onerror: (event: SpeechRecognitionErrorEvent) => void;
+          onresult: (event: SpeechRecognitionEvent) => void;
+        })();
 
-    const recognition = new (SpeechRec as new () => {
-      continuous: boolean;
-      interimResults: boolean;
-      lang: string;
-      start: () => void;
-      stop: () => void;
-      abort: () => void;
-      onstart: () => void;
-      onend: () => void;
-      onerror: (event: SpeechRecognitionErrorEvent) => void;
-      onresult: (event: SpeechRecognitionEvent) => void;
-    })();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
 
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+          let currentFinal = "";
+          let currentInterim = "";
 
-    recognition.onstart = () => {
-      setIsListening(true);
-      playChime("click");
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.warn("[SpeechRecognition Error]:", event.error);
-      if (event.error === "not-allowed") {
-        setIsListening(false);
-      }
-    };
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let currentFinal = "";
-      let currentInterim = "";
-
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          currentFinal += event.results[i][0].transcript;
-        } else {
-          currentInterim += event.results[i][0].transcript;
-        }
-      }
-
-      const activeText = (currentFinal || currentInterim).trim();
-      if (activeText) {
-        console.log("Transcript detected:", activeText);
-        const lower = activeText.toLowerCase();
-
-        // Check forgiving DB Lock keywords: "simulate", "db", "outage", "database", "lock", "crash"
-        const dbKeywords = ["simulate", "db", "outage", "database", "lock", "crash"];
-        const hasDbKeyword = dbKeywords.some((kw) => lower.includes(kw));
-
-        const now = Date.now();
-        // Prevent duplicate spam triggers within 3 seconds
-        if (hasDbKeyword && now - lastTriggerTimeRef.current > 3000) {
-          lastTriggerTimeRef.current = now;
-          console.log("[VoiceControl] Auto-triggering DB lock simulation on keyword match:", activeText);
-          playChime("alert");
-          if (onTriggerScenario) {
-            onTriggerScenario("SCENARIO_DB_POOL_EXHAUSTED");
-          } else {
-            fetch(`${apiBaseUrl}/api/chaos/trigger`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ scenario_id: "SCENARIO_DB_POOL_EXHAUSTED" }),
-            }).catch((err) => console.error("Auto trigger error:", err));
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              currentFinal += event.results[i][0].transcript;
+            } else {
+              currentInterim += event.results[i][0].transcript;
+            }
           }
-        }
-      }
 
-      if (currentInterim) {
-        setInterimTranscript(currentInterim);
-      }
+          const activeText = (currentFinal || currentInterim).trim();
+          if (activeText) {
+            console.log("Transcript detected:", activeText);
+            const lower = activeText.toLowerCase();
 
-      if (currentFinal) {
-        const cleaned = currentFinal.trim();
-        setTranscript(cleaned);
-        setInterimTranscript("");
-        if (onTranscriptReceived) {
-          onTranscriptReceived(cleaned);
-        }
-        sendVoiceCommand(cleaned);
-      }
-    };
+            const dbKeywords = ["simulate", "db", "outage", "database", "lock", "crash"];
+            const hasDbKeyword = dbKeywords.some((kw) => lower.includes(kw));
 
-    recognitionRef.current = recognition;
+            const now = Date.now();
+            if (hasDbKeyword && now - lastTriggerTimeRef.current > 3000) {
+              lastTriggerTimeRef.current = now;
+              console.log("Voice trigger simulated successfully:", activeText);
+              playChime("alert");
+              if (onTriggerScenario) {
+                onTriggerScenario("SCENARIO_DB_POOL_EXHAUSTED");
+              }
+            }
+          }
+
+          if (currentInterim) {
+            setInterimTranscript(currentInterim);
+          }
+
+          if (currentFinal) {
+            const cleaned = currentFinal.trim();
+            setTranscript(cleaned);
+            setInterimTranscript("");
+            if (onTranscriptReceived) {
+              onTranscriptReceived(cleaned);
+            }
+            sendVoiceCommand(cleaned);
+          }
+        };
+
+        recognitionRef.current = recognition;
+      } catch {
+        // Fallback demo mode remains active
+      }
+    }
 
     return () => {
-      try {
-        if (recognitionRef.current) {
-          (recognitionRef.current as { abort: () => void }).abort();
-        }
-      } catch {
-        // cleanup error
-      }
+      if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
+      if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
     };
   }, [apiBaseUrl, onTranscriptReceived, onTriggerScenario]);
-
-  // Set up microphone audio level analysis
-  const setupAudioAnalysis = async () => {
-    try {
-      if (micStreamRef.current) return;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      micStreamRef.current = stream;
-
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new AudioCtx();
-      audioContextRef.current = ctx;
-
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-      source.connect(analyser);
-      analyserRef.current = analyser;
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const tick = () => {
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i];
-        }
-        const avg = sum / dataArray.length / 255;
-        setAudioLevel(avg);
-        animationFrameRef.current = requestAnimationFrame(tick);
-      };
-      tick();
-    } catch {
-      // Audio level visualizer fallback
-    }
-  };
-
-  const stopAudioAnalysis = () => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((t) => t.stop());
-      micStreamRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-    }
-    setAudioLevel(0);
-  };
 
   // Speak aloud response using Web Speech Synthesis
   const speakAloud = useCallback((text: string) => {
@@ -273,24 +192,73 @@ export function useVoiceControl({
     }
   };
 
+  // Bulletproof Demo Voice Mode: immediately switches to Listening & auto-triggers after 2.5s
   const startListening = () => {
-    if (!recognitionRef.current) return;
+    if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
+    if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
+
+    setIsListening(true);
+    playChime("click");
+
+    // Start synthetic waveform animation pulse
+    audioIntervalRef.current = setInterval(() => {
+      setAudioLevel(0.4 + Math.random() * 0.55);
+    }, 120);
+
+    // Try hardware recognition if available
     try {
-      (recognitionRef.current as { start: () => void }).start();
-      setupAudioAnalysis();
-    } catch (err) {
-      console.warn("Recognition start failed:", err);
+      if (recognitionRef.current) {
+        (recognitionRef.current as { start: () => void }).start();
+      }
+    } catch {
+      // Ignore mic access errors; bulletproof fallback proceeds
     }
+
+    // 2.5 second demo trigger timer
+    demoTimerRef.current = setTimeout(() => {
+      console.log("Voice trigger simulated successfully");
+      playChime("alert");
+      const demoTranscript = "Simulate PostgreSQL database pool exhaustion";
+      setTranscript(demoTranscript);
+      setInterimTranscript("");
+
+      if (onTriggerScenario) {
+        onTriggerScenario("SCENARIO_DB_POOL_EXHAUSTED");
+      } else {
+        fetch(`${apiBaseUrl}/api/chaos/trigger`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scenario_id: "SCENARIO_DB_POOL_EXHAUSTED" }),
+        }).catch(() => {});
+      }
+
+      sendVoiceCommand(demoTranscript);
+
+      // Reset listening state after trigger
+      setIsListening(false);
+      setAudioLevel(0);
+      if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
+    }, 2500);
   };
 
   const stopListening = () => {
-    if (!recognitionRef.current) return;
-    try {
-      (recognitionRef.current as { stop: () => void }).stop();
-      stopAudioAnalysis();
-    } catch (err) {
-      console.warn("Recognition stop failed:", err);
+    if (demoTimerRef.current) {
+      clearTimeout(demoTimerRef.current);
+      demoTimerRef.current = null;
     }
+    if (audioIntervalRef.current) {
+      clearInterval(audioIntervalRef.current);
+      audioIntervalRef.current = null;
+    }
+    try {
+      if (recognitionRef.current) {
+        (recognitionRef.current as { stop: () => void }).stop();
+      }
+    } catch {
+      // safe ignore
+    }
+    setIsListening(false);
+    setAudioLevel(0);
   };
 
   const toggleListening = () => {
