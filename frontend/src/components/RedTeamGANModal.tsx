@@ -10,7 +10,7 @@ export interface AdversarialRoundData {
   defender_name: string;
   attack_vector: string;
   defense_action: string;
-  intercept_time_ms: float;
+  intercept_time_ms: number;
   result: string;
   timestamp: string;
 }

@@ -12,7 +12,9 @@ interface SpeechRecognitionErrorEvent extends Event {
 interface SpeechRecognitionEvent extends Event {
   resultIndex: number;
   results: {
+    length: number;
     [index: number]: {
+      length: number;
       [index: number]: {
         transcript: string;
         confidence: number;

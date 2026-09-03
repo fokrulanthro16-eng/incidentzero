@@ -50,6 +50,7 @@ import { VoiceprintAirlockModal } from "@/components/VoiceprintAirlockModal";
 import { GlobalMeshFailover } from "@/components/GlobalMeshFailover";
 import { SovereignMultiCloudPill } from "@/components/SovereignMultiCloudPill";
 import { RedTeamGANModal } from "@/components/RedTeamGANModal";
+import { PostmortemModal } from "@/components/PostmortemModal";
 import { formatLatency, formatRPS, playChime, cn } from "@/lib/utils";
 
 const API_BASE = "http://127.0.0.1:8000";
@@ -546,65 +547,11 @@ export default function MissionControlDashboard() {
       />
 
       {/* Postmortem Executive Report Modal */}
-      {showPostmortem && postmortemData && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#0B101B] border border-cyan-500/25 rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6 font-mono text-xs shadow-2xl relative">
-            <button
-              onClick={() => setShowPostmortem(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg bg-[#111A2B]"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-2 mb-2">
-              <FileText className="w-5 h-5 text-cyan-400" />
-              <h2 className="text-base font-bold text-white font-serif">Executive SRE Incident Postmortem</h2>
-            </div>
-            <p className="text-slate-400 mb-4 pb-3 border-b border-cyan-500/10">
-              Incident ID: {String(postmortemData.incident_id)} • Severity: {String(postmortemData.severity)}
-            </p>
-
-            <div className="space-y-4 text-slate-300">
-              <div>
-                <span className="text-cyan-400 font-bold block uppercase mb-1">Executive Summary</span>
-                <p className="bg-[#060A12] p-3 rounded-xl border border-cyan-500/10 leading-relaxed">
-                  {String(postmortemData.executive_summary)}
-                </p>
-              </div>
-
-              <div>
-                <span className="text-cyan-400 font-bold block uppercase mb-1">Root Cause Analysis</span>
-                <p className="bg-[#060A12] p-3 rounded-xl border border-cyan-500/10 leading-relaxed">
-                  {String(postmortemData.root_cause_analysis)}
-                </p>
-              </div>
-
-              <div>
-                <span className="text-emerald-400 font-bold block uppercase mb-1">Remediation Actions</span>
-                <ul className="list-disc list-inside bg-[#060A12] p-3 rounded-xl border border-cyan-500/10 space-y-1">
-                  {(postmortemData.remediation_actions as string[])?.map((act, i) => (
-                    <li key={i}>{act}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div>
-                <span className="text-amber-400 font-bold block uppercase mb-1">Preventative Measures</span>
-                <ul className="list-disc list-inside bg-[#060A12] p-3 rounded-xl border border-cyan-500/10 space-y-1">
-                  {(postmortemData.preventative_measures as string[])?.map((item, i) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="flex items-center justify-between pt-2 text-slate-400 border-t border-cyan-500/10">
-                <span>SLA Compliance: {String(postmortemData.sla_compliance_pct)}%</span>
-                <span>MCP Tools: {(postmortemData.mcp_tools_invoked as string[])?.length} invoked</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <PostmortemModal
+        isOpen={showPostmortem}
+        onClose={() => setShowPostmortem(false)}
+        data={postmortemData}
+      />
     </div>
   );
 }
